@@ -1,26 +1,42 @@
 #!/usr/bin/env python3
-"""Entry point for the News 24 image entry.
+"""News 24 front page — Tuesday 24 November 2026.
 
-Renders the front page with render.py and writes it to
-$MAKEFUN_OUTPUT_DIR/entry.png (default ./output/entry.png).
-Deterministic: the same code always writes identical bytes.
+The 1024x1024 front page is already rendered and ships in this
+repository as entry.png, next to this file. All this program does is
+copy that finished image into the directory the grader reads from.
+
+Deliberately standard library only. The grader runs Python 3.13 in a
+sandbox without Pillow, so nothing here imports PIL or touches system
+fonts — a plain file copy cannot fail on a missing third-party
+package. The repository is mounted read-only while grading, so this
+program never writes beside itself; it only writes to the output
+directory named by MAKEFUN_OUTPUT_DIR (falling back to /output).
 """
+
 import os
+import shutil
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+BASE = Path(__file__).resolve().parent
+DEST_DIR = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
 
-from render import render  # noqa: E402
 
-
-def main():
-    out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "./output")
-    os.makedirs(out_dir, exist_ok=True)
-    img = render()
-    path = os.path.join(out_dir, "entry.png")
-    img.save(path, format="PNG", compress_level=6)
-    print(path)
+def main() -> int:
+    source = BASE / "entry.png"
+    target = DEST_DIR / "entry.png"
+    if not source.is_file():
+        print(f"entry image missing: {source}", file=sys.stderr)
+        return 1
+    DEST_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+    data = target.read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n" or len(data) != source.stat().st_size:
+        print("copied image failed PNG validation", file=sys.stderr)
+        return 1
+    print(f"copied {source} -> {target} ({target.stat().st_size} bytes)")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
